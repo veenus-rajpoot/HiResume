@@ -1,0 +1,22 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# data generated at runtime
+data/vector_db/*
+!data/vector_db/.gitkeep
+data/profiles/*
+!data/profiles/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# streamlit
+.streamlit/
+
+# os
+.DS_Store
