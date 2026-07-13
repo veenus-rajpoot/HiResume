@@ -1,63 +1,125 @@
 """
 Centralized configuration.
 
-Every other module reads settings from here instead of calling
-os.getenv() directly — this keeps the .env contract in one place.
+Works in both:
+1. Local development (.env)
+2. Streamlit Cloud (st.secrets)
 """
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
+
+import streamlit as st
 from dotenv import load_dotenv
 
 
-# Load .env from the project root regardless of the current working directory
+# ------------------------------------------------------------------
+# Load local .env (ignored on Streamlit Cloud if secrets are provided)
+# ------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 
+def get_setting(name: str, default=None):
+    """
+    Read configuration in the following order:
+
+    1. Streamlit Secrets (deployment)
+    2. .env / environment variables (local)
+    3. Default value
+    """
+    try:
+        if name in st.secrets:
+            return st.secrets[name]
+    except Exception:
+        pass
+
+    return os.getenv(name, default)
+
+
 def _get_bool(name: str, default: bool) -> bool:
-    val = os.getenv(name)
+    val = get_setting(name)
     if val is None:
         return default
-    return val.strip().lower() in {"1", "true", "yes", "on"}
+    return str(val).strip().lower() in {"1", "true", "yes", "on"}
 
 
 class Settings:
-    # --- Groq / LLM ---
-    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
-
-    # --- Embeddings ---
-    EMBEDDING_MODEL: str = os.getenv(
-        "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+    # ------------------------------------------------------------------
+    # LLM
+    # ------------------------------------------------------------------
+    GROQ_API_KEY: str = get_setting("GROQ_API_KEY", "")
+    GROQ_MODEL: str = get_setting(
+        "GROQ_MODEL",
+        "llama-3.3-70b-versatile"
+    )
+    LLM_TEMPERATURE: float = float(
+        get_setting("LLM_TEMPERATURE", "0.3")
     )
 
-    # --- Storage paths (all relative to project root unless absolute) ---
-    VECTOR_DB_DIR: Path = PROJECT_ROOT / os.getenv("VECTOR_DB_DIR", "data/vector_db")
-    PROFILE_DIR: Path = PROJECT_ROOT / os.getenv("PROFILE_DIR", "data/profiles")
-    OUTPUT_DIR: Path = PROJECT_ROOT / os.getenv("OUTPUT_DIR", "outputs")
+    # ------------------------------------------------------------------
+    # Embeddings
+    # ------------------------------------------------------------------
+    EMBEDDING_MODEL: str = get_setting(
+        "EMBEDDING_MODEL",
+        "sentence-transformers/all-MiniLM-L6-v2"
+    )
 
-    # --- RAG tuning ---
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "800"))
-    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "120"))
-    RETRIEVAL_TOP_K: int = int(os.getenv("RETRIEVAL_TOP_K", "12"))
+    # ------------------------------------------------------------------
+    # Storage
+    # ------------------------------------------------------------------
+    VECTOR_DB_DIR: Path = PROJECT_ROOT / get_setting(
+        "VECTOR_DB_DIR",
+        "data/vector_db"
+    )
+
+    PROFILE_DIR: Path = PROJECT_ROOT / get_setting(
+        "PROFILE_DIR",
+        "data/profiles"
+    )
+
+    OUTPUT_DIR: Path = PROJECT_ROOT / get_setting(
+        "OUTPUT_DIR",
+        "outputs"
+    )
+
+    # ------------------------------------------------------------------
+    # RAG
+    # ------------------------------------------------------------------
+    CHUNK_SIZE: int = int(
+        get_setting("CHUNK_SIZE", "800")
+    )
+
+    CHUNK_OVERLAP: int = int(
+        get_setting("CHUNK_OVERLAP", "120")
+    )
+
+    RETRIEVAL_TOP_K: int = int(
+        get_setting("RETRIEVAL_TOP_K", "12")
+    )
 
     @classmethod
     def validate(cls) -> list[str]:
-        """Returns a list of human-readable problems, empty if config is OK."""
         problems = []
+
         if not cls.GROQ_API_KEY:
             problems.append(
-                "GROQ_API_KEY is missing. Add it to your .env file "
-                "(get one at https://console.groq.com/keys)."
+                "GROQ_API_KEY is missing. "
+                "Add it to Streamlit Secrets (deployment) "
+                "or .env (local development)."
             )
+
         return problems
 
     @classmethod
-    def ensure_dirs(cls) -> None:
-        for d in (cls.VECTOR_DB_DIR, cls.PROFILE_DIR, cls.OUTPUT_DIR):
+    def ensure_dirs(cls):
+        for d in (
+            cls.VECTOR_DB_DIR,
+            cls.PROFILE_DIR,
+            cls.OUTPUT_DIR,
+        ):
             d.mkdir(parents=True, exist_ok=True)
 
 
