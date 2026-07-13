@@ -1,4 +1,4 @@
-# AI Resume Studio
+# HiResume
 
 Generates an ATS-friendly resume tailored to a specific job description,
 using a candidate's stored career history — via RAG + a Groq-hosted LLM,
